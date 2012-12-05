@@ -1,0 +1,11 @@
+SetEnv TZ America/Lima
+
+#Options +FollowSymLinks
+Options +FollowSymLinks
+RewriteEngine On
+
+
+RewriteCond %{SCRIPT_FILENAME} !-d  
+RewriteCond %{SCRIPT_FILENAME} !-f 
+RewriteRule ^(.*)$ index.html?q=$1 [L,QSA]
+#RewriteRule ^/?$ index.html?u=$1 [QSA,L]
