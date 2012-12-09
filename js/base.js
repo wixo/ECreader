@@ -29,17 +29,20 @@ function diffr( oldObj, newObj ) {
 			newsURL  : "http://query.yahooapis.com/v1/public/yql?q=use%20%22http%3A%2F%2Fwww.datatables.org%2Fdata%2Fhtmlstring.xml%22%20as%20html.tostring%3B%20select%20*%20from%20html.tostring%20where%20url%3D%22http%3A%2F%2Felcomercio.pe%22%20and%20xpath%3D'%2F%2Fdiv%5B%40class%3D%22box-note%20wmedia%22%5D%2Fdiv%2Fa%2Fimg%7C%2F%2Fdiv%5B%40class%3D%22box-note%20wmedia%22%5D%2Fh2%2Fa%7C%2F%2Fdiv%5B%40class%3D%22box-note%20wmedia%22%5D%2Fp'&format=json&diagnostics=true&callback=",
 			storyURL : ["http://query.yahooapis.com/v1/public/yql?q=use%20%22http%3A%2F%2Fwww.datatables.org%2Fdata%2Fhtmlstring.xml%22%20as%20html.tostring%3B%20select%20*%20from%20html.tostring%20where%20url%3D%22",
 									"%22%20and%20xpath%3D'%2F%2Fdiv%5B%40id%3D%22textonota%22%5D'&format=json&diagnostics=true&callback="],
-			$container : null,
-			container : 'div.container',
-			showing : 'news'
+			completeStoryURL : ["http://query.yahooapis.com/v1/public/yql?q=use%20%22http%3A%2F%2Fwww.datatables.org%2Fdata%2Fhtmlstring.xml%22%20as%20html.tostring%3B%20select%20*%20from%20html.tostring%20where%20url%3D%22",
+													"%22%20and%20xpath%3D'%2F%2Fdiv%5B%40id%3D%22news%22%5D%2Fh1%7C%2F%2Fdiv%5B%40class%3D%22cnt-player%22%5D%2Fimg%7C%2F%2Fp%5B%40class%3D%22bajada%22%5D%7C%2F%2Fdiv%5B%40id%3D%22textonota%22%5D'&format=json&diagnostics=true&callback="],
+			$container  : null,
+			$global     : null,
+			$disclaimer : null,
+			$footer     : null,
+			container   : 'div.container',
+			showing     : 'news',
+			nameSpace   : 'ECreader'
 		},
-		$container : null,
-		introFix : null,
-		urlNews : "http://query.yahooapis.com/v1/public/yql?q=use%20%22http%3A%2F%2Fwww.datatables.org%2Fdata%2Fhtmlstring.xml%22%20as%20html.tostring%3B%20select%20*%20from%20html.tostring%20where%20url%3D%22http%3A%2F%2Felcomercio.pe%22%20and%20xpath%3D'%2F%2Fdiv%5B%40class%3D%22box-note%20wmedia%22%5D%2Fdiv%2Fa%2Fimg%7C%2F%2Fdiv%5B%40class%3D%22box-note%20wmedia%22%5D%2Fh2%2Fa%7C%2F%2Fdiv%5B%40class%3D%22box-note%20wmedia%22%5D%2Fp'&format=json&diagnostics=true&callback=",
 		beforeInit : function() {
 			var self           = this,
-			    storageData    = localStorage.getItem( 'ECreader' ),
-			    foundInStorage = false;
+					storageData    = localStorage.getItem( 'ECreader' ),
+					foundInStorage = false;
 			this.URL.init( self );
 
 			this.$container = $('ul.news');
@@ -82,84 +85,254 @@ function diffr( oldObj, newObj ) {
 		testInit : function() {
 			var self = this;
 
+			this.config.$global     = $(global);
+			this.config.$container  = $('ul.news');
+			this.config.$disclaimer = $('div.disclaimer');
+			this.config.$footer     = $('footer');
+
 			this.URL.init( self );
 			this.DATA.init( self );
-			this.config.$container = $('ul.news');
 			this.UTIL.init( self );
 			this.BUILD.init( self );
+			this.COOKIES.init( self );
+			this.STORAGE.init( self );
 
-			// if( this.URL.slug ) {
+			// $.when( self.DATA.fetchNews() ).then( function( data ) {
+			// 	var unparsedData = data.query.results.result;
 
-			// 	this.BUILD.buildStory
+			// 	self.DATA.parseNewsList( unparsedData );
+			// });
 
-			// }else {
+			//disclaimer
+
+			// window.addEventListener('popstate', function(event) {
+			// 	console.log('popstate fired!');
+
+			// 	// updateContent(event.state);
+			// });
+
+			if( !this.COOKIES.isPresent( this.config.nameSpace ) ) {
+				this.BUILD.buildDisclaimer();
+			}
+
+			if( this.URL.slug ) {
+
+				this.BUILD.buildStory(null, this.config.$container, true);
+
+			}else {
+
 				this.config.$container.parent().addClass('news-container');
 				this.BUILD.buildNews( this.config.$container );
 
-			// }
+			}
 
+		},
+		ANIMATION : {
+			init : function( scope ) {
+				this.scope = scope;
+			},
+			scrollToTop : function( $element ) {
+				var $element = $element || $('html,body');
+				$element.animate({scrollTop: 0});
+				return false;
+			}
+		},
+		COOKIES : {
+			init : function( scope ) {
+				this.scope = scope;
+			},
+			setCookie : function( name, value ) { //as we use them in a basic way we will set them to last *forever* yay!
+				document.cookie = name+'='+value+'; path=/';
+				return false;
+			},
+			isPresent : function( name ) { //returns if there is a cookie with that name
+				var cookies = document.cookie.split(';'),
+						parts   = [],
+						i       = cookies.length;
+
+				while( i-- ) {
+					parts.push(cookies[i].split('='));
+				}
+
+				return parts.some(function(c) {
+					return c[0].trim() === name;
+				});
+			}
 		},
 		BUILD : {
 			init : function( scope ) {
 				this.scope = scope;
+				this.COMPONENT.init( scope );
+
+				this.scope.URL.setPopStateListener();
+			},
+			error : function( message ) {
+				var $error = div().attr("class","error-container hero-unit");
+				$('body').empty().append($error);
+
+				h1().text(":(").appendTo( $error );
+				p().attr("class","tagline").text("Hubo un error.").appendTo( $error );
+				p().text( message + "." ).appendTo( $error );
+				p().text("Por favor intenta recargando la página. Si el error persiste contáctame.").appendTo( $error );
+			},
+			alert : function( message ) {
+				var $leDiv = div().attr("class","alert alert-error").text( message );
+				a().attr("class","close").html('&times;').on('click', function() {$(this).parent().slideUp()}).appendTo($leDiv);
+				return $leDiv;
 			},
 			buildNews : function( $container ) { //appends the news to $container
 				var self = this;
+
 				$.when( self.scope.DATA.fetchNews() ).then( function( data ) {
 					var unparsedData = data.query.results.result,
 							parsedStories;
 
 					parsedStories = self.scope.DATA.parseNewsData( unparsedData );
+
+					//storing on localStorage
+					self.scope.STORAGE.setStories( parsedStories );
+
 					$.each( parsedStories, function( i,v ) {
 						var h = self.buildStoriesSegment( v, $container );
 						h.appendTo($container);
 					});
 
+				}, function() {
+					self.error('No pudimos conectarnos a la web de El Comercio');
 				} );
 			},
-			buildStory : function( story, $container ) { //clean the containers and append Story Html fragment
+			fetchStoriesAndBuildFromSlug : function($container) { //to use as a fallback when no data storage and slug
 				var self = this;
-				$.when( self.scope.DATA.fetchStory( story.link ) ).then( function( data ) {
+				$.when( self.scope.DATA.fetchNews() ).then( function( data ) {
 					var unparsedData = data.query.results.result,
-					    parsedParagraphs,
-					    storyFragment;
+							storyFound,
+							parsedStories;
 
-					parsedParagraphs = self.scope.DATA.getParagraphs( unparsedData );
-
-					story.paragraphs = parsedParagraphs;
-
-					storyFragment = self.buildStorySegment( story );
-
-					$container.fadeOut();
-					$container.promise().done(function() {
-						var leContainer = $container.parent();
-
-						if( self.scope.config.showing === 'news' ) {
-							$container.parent().empty().removeClass('news-container').addClass('story-container');
-							self.scope.config.showing = 'story';
-						}else {
-							$container.parent().empty();
+					parsedStories = self.scope.DATA.parseNewsData( unparsedData );
+					$.each( parsedStories, function( i,v ) {
+						if( !storyFound ) {
+							storyFound = (v.slug === self.scope.URL.slug) && v;
 						}
-
-						storyFragment.appendTo( leContainer );
-
 					});
 
-				} );
+					if( storyFound ) {
+						self.buildStory( storyFound, $container )
+					}else {
+						console.log('story not found');
+					}
+
+				}, function() {
+					self.error('No pudimos conectarnos a la web de El Comercio');
+				});
+			},
+			buildFooter : function( story ) { //show footer mark up if exists and bind events
+				var $footer = this.scope.config.$footer,
+						beforeAfter,
+						self    = this;
+
+				$footer.length && $footer.show();
+
+				$footer.find('li.home').on('click', self.scope.UTIL.NAVIGATION.home);
+				beforeAfter = self.scope.DATA.beforeAfterStory( story );
+
+				self.bindFooterNavigation( $footer, beforeAfter );
+
+				return false
+			},
+			bindFooterNavigation : function( $footer, beforeAfter, story ) {
+				var $footer = $footer || this.scope.config.$footer,
+						self = this;
+
+				story && (beforeAfter = self.scope.DATA.beforeAfterStory( story ));
+
+				$footer.find('li.back').off('click').one('click', function() {
+					if( !!beforeAfter.before ) {
+						self.buildStory( beforeAfter.before , self.scope.config.$container, false, true );
+
+					}else {
+						self.alert('Ya no hay historias más recientes que mostrar.').prependTo($footer);
+					}
+				});
+
+				$footer.find('li.next').off('click').one('click', function() {
+					if( !!beforeAfter.after ) {
+						self.buildStory( beforeAfter.after , self.scope.config.$container, false, true );
+
+					}else {
+						self.alert('Llegamos al final de la lista de historias. Gracias por usar ECreader :)').prependTo($footer);
+					}
+				});
+				return false;
+			},
+			buildDisclaimer : function() { //show the disclaimer if present in the markup else it builds up one
+				var self = this;
+				if( this.scope.config.$disclaimer.length ) {
+					this.scope.config.$disclaimer.slideDown();
+					this.scope.config.$disclaimer.promise().done(function() {
+						self.COMPONENT.closeDisclaimer();
+					});
+				}else {
+					//no markup with $disclaimer, build one;
+				}
+			},
+			buildStory : function( story, $container, isNew, fromStory ) { //clean the containers and append Story Html fragment
+				var self = this;
+
+				if( isNew ) {
+					self.fetchStoriesAndBuildFromSlug( $container );
+				}else {
+
+					$.when( self.scope.DATA.fetchStory( story.link ) ).then( function( data ) {
+						var unparsedData = data.query.results.result,
+								storyFragment;
+
+						if( fromStory ) {
+							$container = $('div.story');
+						}
+
+						story.paragraphs = self.scope.DATA.getParagraphs( unparsedData );
+						storyFragment    = self.buildStorySegment( story );
+
+						self.scope.URL.setSlug( story, story.slug );
+
+						$container.animate({left: parseInt( $container.css('left'), 10) === 0 ? -$container.outerWidth() : 0});
+						//nasty code alert
+						$container.promise().done(function() {
+							self.scope.config.$global.scrollTop() !== 0 ? self.scope.ANIMATION.scrollToTop() : false;
+						});
+						$container.promise().done(function() {
+							var $parentContainer = $container.parent();
+
+							!!fromStory ? self.bindFooterNavigation( false, false, story ) : self.scope.UTIL.toggleState( null,story );
+							$parentContainer.empty();
+
+							storyFragment.appendTo( $parentContainer );
+
+						});
+
+					}, function() {
+						self.error('No pudimos conectarnos a la web de El Comercio');
+					});
+
+				}
+
 			},
 			buildStorySegment : function( story ) {//returns html fragment for a story
 				var $storyContainer,   //div
-				    $contentContainer, //div
-				    $titleContainer,   //div
-				    j = 0; //to iterate paragraphs
+						$contentContainer, //div with the story paragraphs
+						$titleContainer,   //div
+						$textContainer,
+						self = this,
+						j = 0; //to iterate paragraphs
 
 				$storyContainer = div().attr({"class":"story"});
 				$titleContainer = div().attr({"class":"title-container"}).
 																css({'background-image':'url('+story.img+')'}).
 																appendTo( $storyContainer );
+				$textContainer  = div().attr({"class":"title-text-container"}).appendTo( $titleContainer );
 
-				h2().attr({"class":"title"}).text( story.title ).appendTo( $titleContainer );
-				p() .attr({"class":"intro"}).text( story.intro ).appendTo( $titleContainer );
+				h2().attr({"class":"title"}).text( story.title ).appendTo( $textContainer );
+				p() .attr({"class":"intro"}).text( story.intro ).appendTo( $textContainer );
 
 				$contentContainer = div().attr({"class":"content"});
 
@@ -169,15 +342,20 @@ function diffr( oldObj, newObj ) {
 
 				$contentContainer.appendTo( $storyContainer );
 
+				//adding scrollFixer Div to allow user scroll the content better
+				div().attr({"class":"scroll-fix"}).css({'min-height': ( self.scope.config.$global.height() / 4 ) + 'px' }).appendTo( $contentContainer );
+
+				self.COMPONENT.liftMeUp( $textContainer ).appendTo( $storyContainer );
+
 				return $storyContainer;
 			},
 			buildStoriesSegment : function( story, $container ) { //returns html fragment for news
 				var $storyContainer,   //li that contains the link
-				    $linkContainer,    //a that contains the div
-				    $innerContainer,   //div that contains the content
-				    $imgContainer,     //div that containes the img
-				    $contentContainer, //div that contains the paragraph with the intro
-				    self = this;
+						$linkContainer,    //a that contains the div
+						$innerContainer,   //div that contains the content
+						$imgContainer,     //div that containes the img
+						$contentContainer, //div that contains the paragraph with the intro
+						self = this;
 
 				//we will use $helm to build the html fragments
 
@@ -200,13 +378,56 @@ function diffr( oldObj, newObj ) {
 				});
 
 				return $storyContainer;
+			},
+			COMPONENT : {
+				init: function( scope ) {
+					this.scope = scope;
+				},
+				liftMeUp: function( $referrer ) { //builds an arrow with the power to lift up the viewport
+					var $liftMeUp,
+							self = this;
 
+					$liftMeUp = div().attr({"class":"lift-me-up"});
+					i().attr({"class":"icon-circle-arrow-up icon-xxl"}).on('click', function() {
+						self.scope.ANIMATION.scrollToTop()
+					}).appendTo( $liftMeUp );
+
+					//nasty code alert
+					if( self.scope.config.$global.width() > 1199 ) {
+						self.scope.config.$global.off('scroll').on('scroll', function() {
+							$liftMeUp.toggleClass('show', !($referrer.offset().top > self.scope.config.$global.scrollTop()));
+						});
+					}
+
+					return $liftMeUp;
+				},
+				closeDisclaimer: function() { //check the presence of a disclaimer, if present set close listeners also with cookies
+					var $disclaimer = this.scope.config.$disclaimer,
+							$close      = $disclaimer.find('a.close-disclaimer')
+							self        = this;
+
+					if( $disclaimer.length ) {
+
+						$close.length && $close.on('click', function(e) {
+							var $this = $(this);
+							e.preventDefault();
+
+							$this.parent().slideUp();
+							$this.promise().done(function() {
+								self.scope.COOKIES.setCookie( self.scope.config.nameSpace, self.scope.config.nameSpace );
+							});
+
+						});
+
+					}
+					return false;
+				}
 			}
 		},
 		URL : {
 			init : function( scope ) {
 				this.scope   = scope;                       //EC referrer
-				this.current = window.location.href;        //we get the current URL
+				this.current = global.location.href;        //we get the current URL
 				this.slug    = this.getSlug( this.current ) //then we get the slug
 				
 			},
@@ -215,11 +436,25 @@ function diffr( oldObj, newObj ) {
 			},
 			hasSlug : function( url ) {
 				return !!(url.substr( url.lastIndexOf('/') + 1 ));
+			},
+			setSlug : function( data, slug ) {
+				history.pushState( data, slug, slug );
+			},
+			setPopStateListener : function() { //add listener to popstate and manage changes
+				var self = this;
+				window.addEventListener('popstate', function(e){
+
+					if( self.scope.config.showing === 'story' ) {
+						self.scope.BUILD.buildStory( e.state , self.scope.config.$container, false, true );
+					}
+
+				});
 			}
 		},
 		UTIL : {
 			init : function( scope ) {
 				this.scope = scope;
+				this.NAVIGATION.init( scope );
 			},
 			fetchJSON : function( url ) {
 				return $.getJSON( url, function( data ) {
@@ -228,13 +463,45 @@ function diffr( oldObj, newObj ) {
 			},
 			stripTitles : function( anchorTag ) { //returns title with text and link
 				var dummyDiv = document.createElement('div'),
-				    o        = {};
+						o        = {};
 
 				dummyDiv.innerHTML = anchorTag;
 				$dummyA            = $(dummyDiv).find('a');
 				o.text             = $dummyA.text();
 				o.link             = $dummyA.attr('href');
 				return o;
+			},
+			toggleState : function( state, story ) {
+				var self = this,
+						$container = self.scope.config.$container.parent();
+
+				if( self.scope.config.showing === 'news') {
+					$container.removeClass('news-container').addClass('story-container');
+					self.scope.config.showing = 'story';
+					$('body').addClass('state-story');
+					self.scope.config.$container = $('div.story');
+					self.scope.BUILD.buildFooter( story );
+
+				}else if( self.scope.config.showing === 'story' ) {
+					$container.removeClass('story-container').addClass('news-container');
+					self.scope.config.showing = 'news';
+					self.scope.config.$container = $('ul.news');
+					$('body').addClass('state-news');
+				}else {
+					$container.removeClass('story-container').removeClass('news-container').addClass(state+'-container');
+					self.scope.config.showing = state;
+				}
+			},
+			NAVIGATION : {
+				init : function( scope ) {
+					this.scope = scope;
+				},
+				home : function() {
+					global.location.href = '/jquery.helm';
+				},
+				windowReload : function() {
+					global.location.reload();
+				}
 			}
 		},
 		DATA : {
@@ -246,12 +513,15 @@ function diffr( oldObj, newObj ) {
 				return this.scope.UTIL.fetchJSON( this.scope.config.newsURL );
 			},
 			fetchStory : function( link ) {
-				return this.scope.UTIL.fetchJSON( this.scope.config.storyURL[0]+link+this.scope.config.storyURL[1] );
+				return this.scope.UTIL.fetchJSON( this.scope.config.storyURL[0] +link+ this.scope.config.storyURL[1] );
+			},
+			fetchCompleteStory : function( link ) {
+				return this.scope.UTIL.fetchJSON( this.scope.config.completeStoryURL[0] +link+ this.scope.config.completeStoryURL[1] );
 			},
 			getIntros : function( data ){
 				var leData        = data.match(/<p\s+class="intro">[\S\s]*?<\/p>/gi),
-				    i             = leData.length,
-				    intros        = [];
+						i             = leData.length,
+						intros        = [];
 
 				this.withoutIntros = data.replace(/<p\s+class="intro">[\S\s]*?<\/p>/gi,'');
 
@@ -265,8 +535,8 @@ function diffr( oldObj, newObj ) {
 			},
 			getMedia : function( data ) {
 				var data  = data.match(/src=(.+?[\.jpg|\.gif|\.png]")/gi),
-				    i     = data.length,
-				    media = [];
+						i     = data.length,
+						media = [];
 
 				while(i--) {
 					leData = data[i].substring(5);
@@ -279,8 +549,8 @@ function diffr( oldObj, newObj ) {
 			},
 			getParagraphs : function( unparsedStoryData ) { //returns paragraphs
 				var paragraphs = unparsedStoryData.match(/<p>[\S\s]*?<\/p>/gi),
-				    i          = paragraphs.length;
-
+						i          = paragraphs.length;
+						
 				while( i-- ) {
 					paragraphs[i] = paragraphs[i].replace(/(<\/?[^>]+>)/gi,'');
 					paragraphs[i] = paragraphs[i].replace(/[\n\r]/g, '');
@@ -290,9 +560,9 @@ function diffr( oldObj, newObj ) {
 			},
 			getTitles : function( dataWithoutIntro ) { //returns titles with text and link
 				var data   = dataWithoutIntro.match(/<a([^>]+)>(.+?)<\/a>/gi),
-				    i      = data.length,
-				    titles = [],
-				    self   = this;
+						i      = data.length,
+						titles = [],
+						self   = this;
 
 				while(i--) {
 					titles.push( self.scope.UTIL.stripTitles( data[i] ) );
@@ -302,11 +572,11 @@ function diffr( oldObj, newObj ) {
 			},
 			parseNewsData : function( unparsedData ) { //returns array of stories
 				var story        = {},
-				    stories      = [],
-				    parsedMedia, //src from imgs so far
-				    parsedIntros,//taglines from news
-				    parsedTitles,//links with hrefs and texts
-				    i;
+						stories      = [],
+						parsedMedia, //src from imgs so far
+						parsedIntros,//taglines from news
+						parsedTitles,//links with hrefs and texts
+						i;
 
 				parsedMedia  = this.getMedia( unparsedData );
 				parsedIntros = this.getIntros( unparsedData );
@@ -316,9 +586,9 @@ function diffr( oldObj, newObj ) {
 
 				while( i-- ) {
 					story.img   = parsedMedia[i];
-					story.title = parsedTitles[i].text;
+					story.title = parsedTitles[i] ? parsedTitles[i].text : console.error(':( EC mismatch');
 					story.intro = parsedIntros[i];
-					story.link  = parsedTitles[i].link;
+					story.link  = parsedTitles[i] ? parsedTitles[i].link : console.error(':( EC mismatch');
 					story.slug  = this.scope.URL.getSlug( story.link );
 
 					stories.push( story );
@@ -327,6 +597,52 @@ function diffr( oldObj, newObj ) {
 				}
 
 				return stories;
+			},
+			parseNewsList : function( unparsedData ) { //returns array of story titles
+				var parsedTitles,
+						self = this;
+
+				this.getIntros( unparsedData );
+				parsedTitles = this.getTitles( this.withoutIntros );
+				parsedTitles.every( function(t) {
+					t.slug = self.scope.URL.getSlug( t.link );
+					return t.slug;
+				});
+
+				return parsedTitles;
+			},
+			beforeAfterStory : function( story ) { //returns an object with the urls of the before and after story
+				var stories = this.scope.STORAGE.getStories(),
+						ba      = {},
+						i       = stories.length;
+
+				while( i-- ){
+					if( stories[i].slug === story.slug ) {
+
+						ba.after   = stories[i+1] ? stories[i+1] : null;
+						ba.before  = stories[i-1] ? stories[i-1] : null;
+						break;
+
+					}else {
+
+						ba.before = null;
+						ba.after  = null;
+
+					} 
+				}
+
+				return ba;
+			}
+		},
+		STORAGE : {
+			init : function( scope ) {
+				this.scope = scope;
+			},
+			setStories : function( stories ) {
+				localStorage.setItem( this.scope.config.storageNS , JSON.stringify( stories ) );
+			},
+			getStories : function() {
+				return JSON.parse(localStorage.getItem( this.scope.config.storageNS ));
 			}
 		},
 		init : function() {
@@ -342,15 +658,15 @@ function diffr( oldObj, newObj ) {
 				self.data = data.query.results.result;
 
 				var story       = {},
-				    data        = self.getMedia( self.data ),
-				    intros      = self.getIntros( self.data ),
-				    titles      = self.getTitles( self.introFix ),
-				    // i           = data.length,
-				    stories     = [],
-				    storageData = localStorage.getItem( 'ECreader' ),
-				    newData,        //var for the new Stories Obj
-				    newStorageData, //the new Story Obj for localstorage
-				    getStoryObj;    //parse all data from YQL
+						data        = self.getMedia( self.data ),
+						intros      = self.getIntros( self.data ),
+						titles      = self.getTitles( self.introFix ),
+						// i           = data.length,
+						stories     = [],
+						storageData = localStorage.getItem( 'ECreader' ),
+						newData,        //var for the new Stories Obj
+						newStorageData, //the new Story Obj for localstorage
+						getStoryObj;    //parse all data from YQL
 
 
 				getStoryObj = function() {
@@ -380,8 +696,8 @@ function diffr( oldObj, newObj ) {
 					newData     = getStoryObj();
 
 					var leSD = [],
-					    j = 0,
-					    diff;
+							j = 0,
+							diff;
 
 					$.each( storageData, function( i,v ) {
 						leSD[j] = v;
@@ -410,160 +726,6 @@ function diffr( oldObj, newObj ) {
 			});
 
 			this.getJson();
-		},
-		getIntros : function( data ) {
-			var leData        = data.match(/<p\s+class="intro">[\S\s]*?<\/p>/gi),
-			    i             = leData.length,
-			    intros        = [];
-
-			this.introFix = data.replace(/<p\s+class="intro">[\S\s]*?<\/p>/gi,'');
-
-			while(i--) {
-				leData[i] = leData[i].replace(/(<\/?[^>]+>)/gi,'');
-				leData[i] = leData[i].replace(/[\n\r]/g, '');
-				intros.push( leData[i] );
-			}
-
-			return intros;
-		},
-		getJson : function( url ) {
-			return $.getJSON( url, function( data ) {
-				return data;
-			});
-		},
-		getInsideStory : function( story ) {
-			var paragraphs = story.match(/<p>[\S\s]*?<\/p>/gi),
-			    i          = paragraphs.length;
-
-			while( i-- ) {
-				paragraphs[i] = paragraphs[i].replace(/(<\/?[^>]+>)/gi,'');
-				paragraphs[i] = paragraphs[i].replace(/[\n\r]/g, '');
-			}
-
-			return paragraphs;
-		},
-		getMedia : function( data ) {
-			var data = data.match(/src=(.+?[\.jpg|\.gif|\.png]")/gi),
-			    i = data.length,
-			    media= [];
-
-			while(i--) {
-				leData = data[i].substring(5);
-				leData = leData.substring(0, leData.length-1);
-
-				media.push( leData );
-			}
-
-			return media;
-		},
-		getStory : function( story ) {
-			var self     = this,
-			    urlLink  = story.link,
-			    urlStory = "http://query.yahooapis.com/v1/public/yql?q=use%20%22http%3A%2F%2Fwww.datatables.org%2Fdata%2Fhtmlstring.xml%22%20as%20html.tostring%3B%20select%20*%20from%20html.tostring%20where%20url%3D%22"+encodeURIComponent( urlLink )+"%22%20and%20xpath%3D'%2F%2Fdiv%5B%40id%3D%22textonota%22%5D'&format=json&diagnostics=true&callback="
-
-			$.when( this.getJson( urlStory ) ).then( function( data ) {
-				var storyData   = data.query.results.result;
-
-				storyParagraphs = self.getInsideStory(storyData);
-
-				story.paragraphs = storyParagraphs;
-
-				self.buildInsideStory( story );
-
-			});
-		},
-		getTitles : function( data ) {
-			var data = data.match(/<a([^>]+)>(.+?)<\/a>/gi),
-			    i    = data.length,
-			    titles= [];
-
-			while(i--) {
-				titles.push( this.stripTitles( data[i] ) );
-			}
-
-			return titles;
-		},
-		buildInsideStory : function( story ) {
-			var $container,
-			    animation,
-			    afterAnimation;
-			story.link = story.link.split('/');
-			history.pushState(null, null, story.link[5]);
-
-			afterAnimation = function( story ) {
-				var $container      = $('div.page'),
-				    $storyContainer = div().attr({"class":"story"}).appendTo($container),
-				    $contentContainer,
-				    $titleContainer,
-				    i = 0;
-
-				$titleContainer = div().attr({"class":"title-container"
-																			}).css({'background-image':'url('+story.img+')'})
-																.appendTo($storyContainer);
-				h2() .attr({"class":"title"}).text(story.title).appendTo($titleContainer);
-				p()  .attr({"class":"intro"}).text(story.content).appendTo($titleContainer);
-				// img().attr({"class":"img","src":story.img}).appendTo($storyContainer);
-				$contentContainer = div().attr({"class":"content"}).appendTo($storyContainer);
-
-				for(; i < story.paragraphs.length; i++) {
-					p().text(story.paragraphs[i]).appendTo($contentContainer);
-				}
-
-			}
-
-			this.$container.fadeOut('slow');
-			this.$container.promise().done(function() {
-				var $this = $(this);
-				$this.parent().empty().removeClass('news-container').addClass('story-container');
-				afterAnimation( story );
-			});
-
-		},
-		buildSegment : function( data ) {
-			var self                = this,
-			    title               = data .title,
-			    link                = data .link,
-			    leImg               = data .img,
-			    content             = data .intro,
-			    $storyContainer     = li() .attr({"class":"story row"}).data('header',title).appendTo(this.$container),
-			    $linkContainer      = a()  .attr({"class":"link","href":link}).appendTo($storyContainer),
-			    $innerStory         = div().attr({"class":"inner-story"}).appendTo($linkContainer),
-			    $imgContainer       = div().attr({"class":"part img-part"}),
-			    $contentContainer   = div().attr({"class":"part content-part"});
-
-			this.$container.parent().addClass('news-container');
-
-			h3() .attr({"class":"title"}).text(title).appendTo($innerStory);
-
-			$imgContainer.appendTo($innerStory);
-			$contentContainer.appendTo($innerStory);
-
-			img().attr({"class":"img",src: leImg}).appendTo($imgContainer);
-			p()  .attr({"class":"content"}).text(content).appendTo($contentContainer);
-
-			$linkContainer.on('click',function(e) {
-				e.preventDefault();
-				var $this = $(this),
-				    story = {};
-
-				story.$link   = $this;
-				story.title   = title;
-				story.link    = link;
-				story.img     = leImg;
-				story.content = content;
-
-				self.getStory( story );
-			});
-
-		},
-		stripTitles : function( html ) {
-			var tmp = document.createElement('div'),
-			    o   = {};
-			tmp.innerHTML = html;
-			$tmp          = $(tmp).find('a');
-			o.text        = $tmp.text();
-			o.link        = $tmp.attr('href');
-			return o;
 		}
 	}
 
@@ -573,4 +735,9 @@ function diffr( oldObj, newObj ) {
 
 $(function() {
 	EC.testInit();
+
+	if( !( Modernizr.localstorage && (typeof [].every === 'function') && Modernizr.history && Modernizr.csstransitions )) {
+		EC.BUILD.error('Tu navegador no soporta algunas de las tecnologías de este experimento, intenta con uno más moderno');
+	}
+
 });
