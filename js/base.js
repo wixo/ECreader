@@ -1,27 +1,3 @@
-function exists(o, obj) {
-	var exists = false;
-	$.each( obj, function( i,v ) {
-		if( !(!!exists) ) {
-			exists = (o.slug === v.slug) && o;
-		}
-	});
-	if (exists) {
-		return false
-	}else {
-		return o;
-	}
-}
-
-function diffr( oldObj, newObj ) {
-	var result = [];
-
-	result = newObj.filter(function (o) {
-		return exists(o, oldObj);
-	})
-
-	return result;
-}
-
 ;(function($, global, document, undefined) {
 
 	var EC = {
@@ -35,54 +11,12 @@ function diffr( oldObj, newObj ) {
 			$global     : null,
 			$disclaimer : null,
 			$footer     : null,
+			homeRef     : '/jquery.helm',
 			container   : 'div.container',
 			showing     : 'news',
 			nameSpace   : 'ECreader'
 		},
-		beforeInit : function() {
-			var self           = this,
-					storageData    = localStorage.getItem( 'ECreader' ),
-					foundInStorage = false;
-			this.URL.init( self );
-
-			this.$container = $('ul.news');
-
-			if( this.URL.slug ) {
-
-				if( storageData ) {
-
-					storageData = JSON.parse( storageData );
-
-					$.each( storageData , function( i,v ) {
-
-						if( !(!!foundInStorage) ) {
-							foundInStorage = ( v.slug === self.URL.slug ) && v;
-						}
-
-					});
-
-					if( foundInStorage ) {
-
-						this.getStory( foundInStorage );
-
-					}else {
-						console.log('fetch new articles first');
-					}
-
-
-				}else {
-
-					console.log('fetch new articles first')
-
-				}
-
-			}else {
-				console.log('no URL');
-				this.init();
-			}
-
-		},
-		testInit : function() {
+		init : function() {
 			var self = this;
 
 			this.config.$global     = $(global);
@@ -96,20 +30,7 @@ function diffr( oldObj, newObj ) {
 			this.BUILD.init( self );
 			this.COOKIES.init( self );
 			this.STORAGE.init( self );
-
-			// $.when( self.DATA.fetchNews() ).then( function( data ) {
-			// 	var unparsedData = data.query.results.result;
-
-			// 	self.DATA.parseNewsList( unparsedData );
-			// });
-
-			//disclaimer
-
-			// window.addEventListener('popstate', function(event) {
-			// 	console.log('popstate fired!');
-
-			// 	// updateContent(event.state);
-			// });
+			this.ANIMATION.init( self );
 
 			if( !this.COOKIES.isPresent( this.config.nameSpace ) ) {
 				this.BUILD.buildDisclaimer();
@@ -132,9 +53,25 @@ function diffr( oldObj, newObj ) {
 				this.scope = scope;
 			},
 			scrollToTop : function( $element ) {
-				var $element = $element || $('html,body');
+				$element = $element || $('html,body'); //just to be clear this is not a global variable because is already declared in the function parameters
 				$element.animate({scrollTop: 0});
 				return false;
+			},
+			showLoading : function( $container ) {
+				var $loading = $( 'body' ).find('div.loading-container');
+
+				$loading.length && $loading.find('div.icon-container').addClass('rotation');
+
+				$loading.length && $loading.fadeIn('100');
+				$loading.length || this.scope.BUILD.loading().hide().appendTo( $container.parent().parent() ).fadeIn('100');
+			},
+			hideLoading : function() {
+				var $loading = $( 'body' ).find('div.loading-container');
+
+				$loading.fadeOut('100');
+				$loading.promise().done( function() {
+					$loading.find('div.icon-container').removeClass('rotation');
+				});
 			}
 		},
 		COOKIES : {
@@ -142,7 +79,7 @@ function diffr( oldObj, newObj ) {
 				this.scope = scope;
 			},
 			setCookie : function( name, value ) { //as we use them in a basic way we will set them to last *forever* yay!
-				document.cookie = name+'='+value+'; path=/';
+				document.cookie = name + '=' + value + '; path=/';
 				return false;
 			},
 			isPresent : function( name ) { //returns if there is a cookie with that name
@@ -173,19 +110,32 @@ function diffr( oldObj, newObj ) {
 				h1().text(":(").appendTo( $error );
 				p().attr("class","tagline").text("Hubo un error.").appendTo( $error );
 				p().text( message + "." ).appendTo( $error );
-				p().text("Por favor intenta recargando la página. Si el error persiste contáctame.").appendTo( $error );
+				p().html("Por favor intenta <a href='"+this.scope.config.homeRef+"'>recargando la página</a>. Si el error persiste contáctame.").appendTo( $error );
 			},
 			alert : function( message ) {
 				var $leDiv = div().attr("class","alert alert-error").text( message );
 				a().attr("class","close").html('&times;').on('click', function() {$(this).parent().slideUp()}).appendTo($leDiv);
 				return $leDiv;
 			},
+			loading : function() {
+				var $loadingContainer,
+				    $shield,
+				    $iconContainer;
+				$loadingContainer = div().attr("class","loading-container");
+				$shield           = div().attr("class","shield").appendTo( $loadingContainer );
+				$iconContainer    = div().attr("class","icon-container rotation").appendTo( $shield );
+				i().attr({"class":"icon-cog icon-xxl"}).appendTo( $iconContainer );
+
+				return $loadingContainer;
+			},
 			buildNews : function( $container ) { //appends the news to $container
 				var self = this;
-
+				self.scope.ANIMATION.showLoading( $container );
 				$.when( self.scope.DATA.fetchNews() ).then( function( data ) {
-					var unparsedData = data.query.results.result,
+					var unparsedData = data.query.results.result || self.error('No pudimos conectarnos a la web de El Comercio'),
 							parsedStories;
+
+					self.scope.ANIMATION.hideLoading();
 
 					parsedStories = self.scope.DATA.parseNewsData( unparsedData );
 
@@ -204,7 +154,7 @@ function diffr( oldObj, newObj ) {
 			fetchStoriesAndBuildFromSlug : function($container) { //to use as a fallback when no data storage and slug
 				var self = this;
 				$.when( self.scope.DATA.fetchNews() ).then( function( data ) {
-					var unparsedData = data.query.results.result,
+					var unparsedData = data.query.results.result || self.error('No pudimos conectarnos a la web de El Comercio'),
 							storyFound,
 							parsedStories;
 
@@ -218,7 +168,7 @@ function diffr( oldObj, newObj ) {
 					if( storyFound ) {
 						self.buildStory( storyFound, $container )
 					}else {
-						console.log('story not found');
+						self.error('No se encontró la historia');
 					}
 
 				}, function() {
@@ -232,7 +182,9 @@ function diffr( oldObj, newObj ) {
 
 				$footer.length && $footer.show();
 
-				$footer.find('li.home').on('click', self.scope.UTIL.NAVIGATION.home);
+				$footer.find('li.home').on('click', function() {
+					self.scope.UTIL.NAVIGATION.home();
+				});
 				beforeAfter = self.scope.DATA.beforeAfterStory( story );
 
 				self.bindFooterNavigation( $footer, beforeAfter );
@@ -240,8 +192,8 @@ function diffr( oldObj, newObj ) {
 				return false
 			},
 			bindFooterNavigation : function( $footer, beforeAfter, story ) {
-				var $footer = $footer || this.scope.config.$footer,
-						self = this;
+				var self = this;
+				$footer = $footer || this.scope.config.$footer; //not global
 
 				story && (beforeAfter = self.scope.DATA.beforeAfterStory( story ));
 
@@ -281,10 +233,12 @@ function diffr( oldObj, newObj ) {
 				if( isNew ) {
 					self.fetchStoriesAndBuildFromSlug( $container );
 				}else {
-
+					self.scope.ANIMATION.showLoading( $container );
 					$.when( self.scope.DATA.fetchStory( story.link ) ).then( function( data ) {
-						var unparsedData = data.query.results.result,
+						var unparsedData = data.query.results.result || self.error('No pudimos conectarnos a la web de El Comercio'),
 								storyFragment;
+
+						self.scope.ANIMATION.hideLoading();
 
 						if( fromStory ) {
 							$container = $('div.story');
@@ -497,7 +451,8 @@ function diffr( oldObj, newObj ) {
 					this.scope = scope;
 				},
 				home : function() {
-					global.location.href = '/jquery.helm';
+					var self = this;
+					global.location.href = self.scope.config.homeRef;
 				},
 				windowReload : function() {
 					global.location.reload();
@@ -534,9 +489,11 @@ function diffr( oldObj, newObj ) {
 				return intros; //return intros and replace with ''
 			},
 			getMedia : function( data ) {
-				var data  = data.match(/src=(.+?[\.jpg|\.gif|\.png]")/gi),
-						i     = data.length,
+				var i,
 						media = [];
+
+				data  = data.match(/src=(.+?[\.jpg|\.gif|\.png]")/gi); //not global
+				i     = data.length;
 
 				while(i--) {
 					leData = data[i].substring(5);
@@ -586,9 +543,9 @@ function diffr( oldObj, newObj ) {
 
 				while( i-- ) {
 					story.img   = parsedMedia[i];
-					story.title = parsedTitles[i] ? parsedTitles[i].text : console.error(':( EC mismatch');
+					story.title = parsedTitles[i] ? parsedTitles[i].text : self.scope.BUILD.error('No se obtuvo la información completa.');
 					story.intro = parsedIntros[i];
-					story.link  = parsedTitles[i] ? parsedTitles[i].link : console.error(':( EC mismatch');
+					story.link  = parsedTitles[i] ? parsedTitles[i].link : self.scope.BUILD.error('No se obtuvo la información completa.');
 					story.slug  = this.scope.URL.getSlug( story.link );
 
 					stories.push( story );
@@ -612,7 +569,7 @@ function diffr( oldObj, newObj ) {
 				return parsedTitles;
 			},
 			beforeAfterStory : function( story ) { //returns an object with the urls of the before and after story
-				var stories = this.scope.STORAGE.getStories(),
+				var stories = this.scope.STORAGE.getStories() || [],
 						ba      = {},
 						i       = stories.length;
 
@@ -645,87 +602,63 @@ function diffr( oldObj, newObj ) {
 				return JSON.parse(localStorage.getItem( this.scope.config.storageNS ));
 			}
 		},
-		init : function() {
-			var self = this;
+		addToStorage : function() { //experimental, not in production
 
-			// this.URL.init( self );
-
-			this.data;
-			this.$container = $('ul.news');
-			// this.urlNews = ;
-
-			$.when( this.getJson( this.urlNews ) ).then( function( data ) {
-				self.data = data.query.results.result;
-
-				var story       = {},
-						data        = self.getMedia( self.data ),
-						intros      = self.getIntros( self.data ),
-						titles      = self.getTitles( self.introFix ),
-						// i           = data.length,
-						stories     = [],
-						storageData = localStorage.getItem( 'ECreader' ),
-						newData,        //var for the new Stories Obj
-						newStorageData, //the new Story Obj for localstorage
-						getStoryObj;    //parse all data from YQL
-
-
-				getStoryObj = function() {
-
-					var i = data.length;
-
-					while( i-- ) {
-						story.img   = data[i].replace(/\/thumb\//,'/');
-						story.title = titles[i].text;
-						story.intro = intros[i];
-						story.link  = titles[i].link;
-						story.slug  = story.link.substr( story.link.lastIndexOf('/') + 1 );
-						// story.img   = story.img;
-
-						stories.push( story );
-
-						self.buildSegment( story );
-
-						story = {};
+			function exists(o, obj) {
+				var exists = false;
+				$.each( obj, function( i,v ) {
+					if( !(!!exists) ) {
+						exists = (o.slug === v.slug) && o;
 					}
-
-					return stories;
-				}
-
-				if( storageData ) {
-					storageData = JSON.parse( storageData );
-					newData     = getStoryObj();
-
-					var leSD = [],
-							j = 0,
-							diff;
-
-					$.each( storageData, function( i,v ) {
-						leSD[j] = v;
-						j++;
-					});
-
-					//add the new data to the old data;
-
-					diff = diffr( leSD, newData );
-
-					if( !!diff.length ) {
-						newStorageData = diff.concat( leSD );
-						localStorage.setItem( 'ECreader', JSON.stringify( newStorageData ) );
-					}
-					
+				});
+				if (exists) {
+					return false
 				}else {
-					//create new data
-
-					newData = getStoryObj();
-
-					localStorage.setItem( 'ECreader', JSON.stringify( stories ) );
-
+					return o;
 				}
+			}
 
+			function diffr( oldObj, newObj ) {
+				var result = [];
 
-			});
+				result = newObj.filter(function (o) {
+					return exists(o, oldObj);
+				})
 
-			this.getJson();
+				return result;
+			}
+
+			if( storageData ) {
+				storageData = JSON.parse( storageData );
+				newData     = getStoryObj();
+
+				var leSD = [],
+						j = 0,
+						diff;
+
+				$.each( storageData, function( i,v ) {
+					leSD[j] = v;
+					j++;
+				});
+
+				//add the new data to the old data;
+
+				diff = diffr( leSD, newData );
+
+				if( !!diff.length ) {
+					newStorageData = diff.concat( leSD );
+					localStorage.setItem( 'ECreader', JSON.stringify( newStorageData ) );
+				}
+				
+			}else {
+				//create new data
+
+				newData = getStoryObj();
+
+				localStorage.setItem( 'ECreader', JSON.stringify( stories ) );
+
+			}
+
 		}
 	}
 
@@ -734,10 +667,17 @@ function diffr( oldObj, newObj ) {
 })(jQuery, window, document);
 
 $(function() {
-	EC.testInit();
 
 	if( !( Modernizr.localstorage && (typeof [].every === 'function') && Modernizr.history && Modernizr.csstransitions )) {
-		EC.BUILD.error('Tu navegador no soporta algunas de las tecnologías de este experimento, intenta con uno más moderno');
+		var $error = div().attr("class","error-container hero-unit");
+		$('body').empty().append($error);
+
+		h1().text(":(").appendTo( $error );
+		p().attr("class","tagline").text("Hubo un error.").appendTo( $error );
+		p().text("Tu navegador no soporta algunas de las tecnologías usadas.").appendTo( $error );
+		p().html("Por favor intenta <a href='//browsehappy.com/'>con un navegador moderno</a>.").appendTo( $error );
+	}else {
+		EC.init();
 	}
 
 });
