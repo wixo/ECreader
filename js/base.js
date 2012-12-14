@@ -132,7 +132,6 @@
 				var self = this;
 				self.scope.ANIMATION.showLoading( $container );
 				$.when( self.scope.DATA.fetchNews() ).then( function( data ) {
-					console.log(data)
 					var unparsedData = data.query.results.result,
 							parsedStories;
 
