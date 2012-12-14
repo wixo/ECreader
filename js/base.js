@@ -132,7 +132,8 @@
 				var self = this;
 				self.scope.ANIMATION.showLoading( $container );
 				$.when( self.scope.DATA.fetchNews() ).then( function( data ) {
-					var unparsedData = data.query.results.result || self.error('No pudimos conectarnos a la web de El Comercio'),
+					console.log(data)
+					var unparsedData = data.query.results.result,
 							parsedStories;
 
 					self.scope.ANIMATION.hideLoading();
